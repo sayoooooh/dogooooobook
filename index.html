@@ -26,7 +26,7 @@
         z-index: 10;
       }
       a-scene {
-        display: none;
+        visibility: hidden; /* Safari対策: displayではなく visibility */
         width: 100vw;
         height: 100vh;
         position: fixed;
@@ -68,24 +68,17 @@
     </a-scene>
 
     <script>
-      const startButton = document.getElementById('startButton');
-      const sceneEl = document.querySelector('a-scene');
-    
-      startButton.addEventListener('click', async () => {
+      const startButton = document.getElementById("startButton");
+      const scene = document.querySelector("a-scene");
+
+      startButton.addEventListener("click", async () => {
         try {
-          // 1. カメラアクセスの許可ダイアログを出す
           await navigator.mediaDevices.getUserMedia({ video: true });
-    
-          // 2. ボタンを隠してシーンを表示
-          startButton.style.display = 'none';
-          sceneEl.style.display = 'block';
-    
-          // 3. MindAR.js を起動
-          //    A-Frame版では .components["mindar-image"] ではなく .systems["mindar-image-system"]
-          await sceneEl.systems["mindar-image-system"].start();
+          startButton.style.display = "none";
+          scene.style.visibility = "visible"; // Safari対応
         } catch (err) {
-          console.error('カメラアクセスが拒否されました:', err);
-          alert('カメラへのアクセスが必要です。ブラウザの設定を確認してください。');
+          console.error(err);
+          alert("カメラの許可が必要です。ブラウザの設定を見直してください。");
         }
       });
     </script>
