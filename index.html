@@ -26,7 +26,7 @@
         z-index: 10;
       }
       a-scene {
-        visibility: hidden; /* Safari対策: displayではなく visibility */
+        visibility: hidden; /* Safari対応：displayではなくvisibility */
         width: 100vw;
         height: 100vh;
         position: fixed;
@@ -71,15 +71,21 @@
       const startButton = document.getElementById("startButton");
       const scene = document.querySelector("a-scene");
 
-      startButton.addEventListener("click", async () => {
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          startButton.style.display = "none";
-          scene.style.visibility = "visible"; // Safari対応
-        } catch (err) {
-          console.error(err);
-          alert("カメラの許可が必要です。ブラウザの設定を見直してください。");
-        }
+      startButton.addEventListener("click", () => {
+        // 1. ボタン非表示＋シーン表示（Safari対策）
+        startButton.style.display = "none";
+        scene.style.visibility = "visible";
+
+        // 2. 少し待ってから getUserMedia を呼ぶ（Safariのレンダリング判定を通す）
+        setTimeout(async () => {
+          try {
+            await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log("カメラ許可OK");
+          } catch (err) {
+            console.error(err);
+            alert("カメラの許可が必要です。ブラウザの設定を見直してください。");
+          }
+        }, 200); // 200ms程度で十分
       });
     </script>
   </body>
