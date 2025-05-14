@@ -12,9 +12,18 @@
         background-color: pink;
         height: 100%;
         overflow: hidden;
+      }
+      #startOverlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: pink;
         display: flex;
         justify-content: center;
         align-items: center;
+        z-index: 999;
       }
       #startButton {
         padding: 20px 40px;
@@ -23,24 +32,16 @@
         border: none;
         border-radius: 8px;
         cursor: pointer;
-        z-index: 10;
-      }
-      a-scene {
-        visibility: hidden; /* Safari対応：displayではなくvisibility */
-        width: 100vw;
-        height: 100vh;
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: 1;
       }
     </style>
   </head>
   <body>
-    <button id="startButton">AR START</button>
+    <div id="startOverlay">
+      <button id="startButton">AR START</button>
+    </div>
 
     <a-scene
-      mindar-image="imageTargetSrc: targets.mind"
+      mindar-image="imageTargetSrc: targets.mind; autoStart: false"
       embedded
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
@@ -69,23 +70,12 @@
 
     <script>
       const startButton = document.getElementById("startButton");
+      const startOverlay = document.getElementById("startOverlay");
       const scene = document.querySelector("a-scene");
 
       startButton.addEventListener("click", () => {
-        // 1. ボタン非表示＋シーン表示（Safari対策）
-        startButton.style.display = "none";
-        scene.style.visibility = "visible";
-
-        // 2. 少し待ってから getUserMedia を呼ぶ（Safariのレンダリング判定を通す）
-        setTimeout(async () => {
-          try {
-            await navigator.mediaDevices.getUserMedia({ video: true });
-            console.log("カメラ許可OK");
-          } catch (err) {
-            console.error(err);
-            alert("カメラの許可が必要です。ブラウザの設定を見直してください。");
-          }
-        }, 200); // 200ms程度で十分
+        startOverlay.style.display = "none";
+        scene.components["mindar-image"].start(); // ← ここでカメラ起動
       });
     </script>
   </body>
