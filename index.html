@@ -68,15 +68,28 @@
       </a-entity>
     </a-scene>
 
-    <script>
-      const startButton = document.getElementById("startButton");
-      const startOverlay = document.getElementById("startOverlay");
-      const scene = document.querySelector("a-scene");
+<script>
+  const startButton = document.getElementById("startButton");
+  const startOverlay = document.getElementById("startOverlay");
+  const scene = document.querySelector("a-scene");
 
-      startButton.addEventListener("click", () => {
-        startOverlay.style.display = "none";
-        scene.components["mindar-image"].start(); // ← ここでカメラ起動
-      });
-    </script>
+  // MindARの初期化を待ってからスタートする関数
+  const waitAndStart = () => {
+    const mindar = scene.components["mindar-image"];
+    if (mindar && typeof mindar.start === "function") {
+      mindar.start();
+      console.log("✅ MindAR started!");
+    } else {
+      console.log("⏳ MindAR not ready yet... retrying.");
+      setTimeout(waitAndStart, 100);
+    }
+  };
+
+  startButton.addEventListener("click", () => {
+    startOverlay.style.display = "none";
+    scene.style.visibility = "visible";
+    waitAndStart();
+  });
+</script>
   </body>
 </html>
