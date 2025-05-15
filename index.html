@@ -15,7 +15,7 @@
   <body>
     <!-- ※1 a-scene に mindar-image 属性を追加しマーカーファイル（.mindファイル）のパスを記載-->
     <a-scene
-      mindar-image="imageTargetSrc: ./assets/targets.mind;"
+      mindar-image="imageTargetSrc: targets.mind;"
       embedded=""
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
@@ -38,7 +38,7 @@
       <a-assets timeout="30000">
         <a-asset-item
           id="submarine_gltf"
-          src="./assets/target.glb"
+          src="target.glb"
         ></a-asset-item>
       </a-assets>
       <!-- ※2 mindar-image-target 属性をつけることでマーカーと対応するentityを作れる -->
