@@ -57,6 +57,17 @@
     </a-scene>
 <!-- JSで音を制御 -->
 <script>
+  // ユーザー操作で再生許可を取得
+  document.body.addEventListener('click', () => {
+    const audio = document.querySelector('#sound');
+    audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+    }).catch(err => {
+      console.warn("初回再生失敗:", err);
+    });
+  }, { once: true });
+
   const marker = document.querySelector('#mytarget');
   const audio = document.querySelector('#sound');
 
