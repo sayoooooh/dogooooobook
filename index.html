@@ -61,7 +61,9 @@
   const audio = document.querySelector('#sound');
 
   marker.addEventListener('targetFound', () => {
-    audio.play().catch(e => console.warn("再生失敗:", e));
+    audio.play().catch(err => {
+      console.warn('再生ブロック:', err);
+    });
   });
 
   marker.addEventListener('targetLost', () => {
