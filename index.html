@@ -1,0 +1,56 @@
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+
+    <!-- <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/1.6.2/aframe/build/aframe-ar.js"></script> -->
+    <script src="https://unpkg.com/aframe-html-shader@0.2.0/dist/aframe-html-shader.min.js"></script>
+    <script src="http://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+    <title></title>
+    <style></style>
+  </head>
+  <body>
+    <!-- ※1 a-scene に mindar-image 属性を追加しマーカーファイル（.mindファイル）のパスを記載-->
+    <a-scene
+      mindar-image="imageTargetSrc: ./assets/target.mind;"
+      embedded=""
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+      inspector=""
+      keyboard-shortcuts=""
+      screenshot=""
+    >
+      <a-camera
+        position="0 0 0"
+        look-controls="enabled: false"
+        cursor="fuse: false; rayOrigin: mouse;"
+        raycaster="far: 10000; objects: .clickable"
+        camera=""
+        rotation=""
+        wasd-controls=""
+      >
+      </a-camera>
+      <a-assets timeout="30000">
+        <a-asset-item
+          id="submarine_gltf"
+          src="./assets/target.glb"
+        ></a-asset-item>
+      </a-assets>
+      <!-- ※2 mindar-image-target 属性をつけることでマーカーと対応するentityを作れる -->
+      <a-entity id="mytarget" mytarget="" mindar-image-target="targetIndex: 0">
+        <a-entity id="portfolio-panel" position="0 -0.5 0">
+          <a-gltf-model
+            src="#submarine_gltf"
+            position="0 0 0"
+            rotation="0 180 0"
+          ></a-gltf-model>
+        </a-entity>
+      </a-entity>
+    </a-scene>
+  </body>
+</html>
