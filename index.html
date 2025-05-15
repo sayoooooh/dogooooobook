@@ -36,7 +36,7 @@
       >
       </a-camera>
 <a-assets timeout="30000">
-  <audio id="sound" src="Fermentation.mp3" loop></audio>
+
   <a-asset-item
     id="submarine_gltf"
     src="chapter3_ar.glb"
@@ -56,22 +56,6 @@
 </a-entity>
     </a-scene>
 <!-- JSで音を制御 -->
-<script>
-  const marker = document.querySelector('#mytarget');
-  const audio = document.querySelector('#sound');
-
-  marker.addEventListener('targetFound', () => {
-    audio.play().catch(err => {
-      console.warn('再生ブロック:', err);
-    });
-  });
-
-  marker.addEventListener('targetLost', () => {
-    audio.pause();
-    audio.currentTime = 0;
-  });
-</script>
-
 
   </body>
 </html>
