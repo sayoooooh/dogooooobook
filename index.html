@@ -86,25 +86,29 @@
       >
         <a-assets>
           <audio id="sound" src="Fermentation.mp3" preload="auto" loop></audio>
-          <!-- GLBモデルの代わりに、カラフルな基本形状を使用 -->
+          <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
         </a-assets>
         
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <!-- ここが重要！カメラの子要素としてモデルを配置 -->
+        <a-camera position="0 0 0" look-controls="enabled: false">
+          <!-- カメラに固定されるモデル（マーカー検出後に表示） -->
+          <a-entity 
+            id="fixed-model"
+            position="0 0 -2"
+            rotation="0 0 0"
+            scale="0.4 0.4 0.4"
+            visible="false">
+            <!-- ここでGLBモデルを使おうとしましたが、読み込みエラーがあったので、
+                 基本図形で代用しています。動作確認後にGLBに戻せます -->
+            <a-box position="0 0 0" width="1" height="1" depth="1" color="red"></a-box>
+            <a-sphere position="0 1 0" radius="0.5" color="blue"></a-sphere>
+            <a-cylinder position="0 -1 0" radius="0.5" height="1" color="green"></a-cylinder>
+          </a-entity>
+        </a-camera>
         
-        <!-- カメラに対して位置固定されるオブジェクト -->
-        <a-entity id="camera-target" position="0 0 -2" visible="false">
-          <!-- カラフルなオブジェクト群 -->
-          <a-sphere position="0 0 0" radius="0.3" color="#4CC3D9"></a-sphere>
-          <a-cylinder position="0 0.5 0" radius="0.2" height="0.5" color="#FFC65D"></a-cylinder>
-          <a-box position="0 -0.5 0" width="0.5" height="0.5" depth="0.5" color="#7BC8A4"></a-box>
-        </a-entity>
-        
-        <!-- マーカー認識用エンティティ -->
+        <!-- マーカー認識用エンティティ - 検出のみに使用 -->
         <a-entity id="example-target" mindar-image-target="targetIndex: 0">
-          <!-- マーカーに表示されるオブジェクト -->
-          <a-sphere position="0 0 0" radius="0.3" color="red"></a-sphere>
-          <a-box position="0 -0.5 0" width="0.5" height="0.5" depth="0.5" color="blue"></a-box>
-          <a-cylinder position="0 0.5 0" radius="0.2" height="0.5" color="green"></a-cylinder>
+          <!-- 空のエンティティ - 検出用にのみ使用 -->
         </a-entity>
       </a-scene>
     </div>
@@ -112,7 +116,7 @@
     <script>
       // 要素の取得
       const exampleTarget = document.getElementById('example-target');
-      const cameraTarget = document.getElementById('camera-target');
+      const fixedModel = document.getElementById('fixed-model');
       const audioControlButton = document.getElementById('audioControlButton');
       const stopIcon = document.getElementById('stopIcon');
       const playIcon = document.getElementById('playIcon');
@@ -128,10 +132,14 @@
         audio.load();
         // iOSのサウンド再生対策
         document.addEventListener('touchstart', function() {
-          const context = new (window.AudioContext || window.webkitAudioContext)();
-          context.resume().then(() => {
-            console.log('AudioContext resumed');
-          });
+          try {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            context.resume().then(() => {
+              console.log('AudioContext resumed');
+            });
+          } catch (e) {
+            console.error('AudioContext error:', e);
+          }
         }, {once: true});
       }
       
@@ -150,16 +158,15 @@
         if (!markerDetected) {
           markerDetected = true;
           
-          // カメラに固定されたオブジェクトを表示
+          // 少し遅延させてから処理
           setTimeout(() => {
-            cameraTarget.setAttribute('visible', 'true');
-            
-            // マーカーオブジェクトはそのまま
+            // 固定モデルを表示
+            fixedModel.setAttribute('visible', 'true');
             
             // コントロールボタンを表示
             audioControlButton.style.display = 'flex';
             
-            statusMessage.textContent = 'オブジェクト表示中 - マーカーを動かしても表示されます';
+            statusMessage.textContent = 'モデル表示中 - マーカーを動かしても表示されます';
           }, 300);
         }
       });
@@ -167,7 +174,12 @@
       // マーカーロスト時
       exampleTarget.addEventListener('targetLost', () => {
         console.log('ターゲットロスト');
-        statusMessage.textContent = 'マーカーロスト - オブジェクトは表示されたまま';
+        statusMessage.textContent = 'マーカーロスト - モデルは表示されたまま';
+        
+        // マーカーロスト後もモデルを表示し続ける（念のため）
+        if (markerDetected) {
+          fixedModel.setAttribute('visible', 'true');
+        }
       });
       
       // 音声コントロールボタンのクリックイベント
@@ -193,6 +205,13 @@
           });
         }
       }
+      
+      // 念のため、表示状態を定期的にチェック
+      setInterval(() => {
+        if (markerDetected && !fixedModel.getAttribute('visible')) {
+          fixedModel.setAttribute('visible', 'true');
+        }
+      }, 100);
     </script>
   </body>
 </html>
