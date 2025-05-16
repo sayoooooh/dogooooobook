@@ -62,7 +62,7 @@
 
     <div class="example-container">
       <a-scene 
-        mindar-image="imageTargetSrc: targets.mind;" 
+        mindar-image="imageTargetSrc: targets.mind; autoStart: true; maxTrack: 1;" 
         embedded
         color-space="sRGB"
         renderer="colorManagement: true, physicallyCorrectLights"
@@ -74,27 +74,15 @@
           <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
         </a-assets>
         
-        <!-- カメラに固定表示するモデル（マーカー検出後に表示） -->
-        <a-camera position="0 0 0" look-controls="enabled: false">
-          <a-entity 
-            id="camera-model"
-            position="0 0 -2"
-            rotation="0 0 0"
-            scale="0.4 0.4 0.4"
-            visible="false">
-            <a-gltf-model
-              id="fixed-submarine"
-              src="#submarine_gltf"
-            ></a-gltf-model>
-          </a-entity>
-        </a-camera>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
         <!-- マーカー認識用エンティティ -->
         <a-entity id="example-target" mindar-image-target="targetIndex: 0">
+          <!-- モデルをマーカーに直接配置 -->
           <a-gltf-model
-            id="marker-submarine"
+            id="submarine-model"
             src="#submarine_gltf"
-            position="0 0 0"
+            position="0 -0.5 0"
             rotation="0 0 0"
             scale="0.4 0.4 0.4"
           ></a-gltf-model>
@@ -105,8 +93,7 @@
     <script>
       // 要素の取得
       const exampleTarget = document.getElementById('example-target');
-      const markerSubmarine = document.getElementById('marker-submarine');
-      const cameraModel = document.getElementById('camera-model');
+      const submarineModel = document.getElementById('submarine-model');
       const audioControlButton = document.getElementById('audioControlButton');
       const stopIcon = document.getElementById('stopIcon');
       const playIcon = document.getElementById('playIcon');
@@ -137,23 +124,51 @@
       exampleTarget.addEventListener('targetFound', () => {
         console.log('ターゲット検出');
         
-        // 初回検出時のみ処理
         if (!markerDetected) {
           markerDetected = true;
           
-          // 少し遅延させてからモデル切り替え
-          setTimeout(() => {
-            // マーカーモデルを非表示に
-            markerSubmarine.setAttribute('visible', 'false');
-            
-            // カメラに固定されたモデルを表示
-            cameraModel.setAttribute('visible', 'true');
-            
-            // コントロールボタンを表示
-            audioControlButton.style.display = 'flex';
-          }, 300);
+          // マーカーの子要素としてモデルを表示
+          submarineModel.setAttribute('visible', 'true');
+          
+          // コントロールボタンを表示
+          audioControlButton.style.display = 'flex';
         }
       });
+      
+      // マーカーロスト時に特別な処理を追加（実験的な機能）
+      exampleTarget.addEventListener('targetLost', () => {
+        console.log('ターゲットロスト');
+        
+        // MindARのデフォルト動作を上書きする実験的なコード
+        if (markerDetected) {
+          // ここでマーカーロスト時にもモデルを表示し続ける処理を実装
+          // 注：これはMindARの仕様上、通常は難しいが、試験的に実装
+          
+          // モデルが非表示になっている場合に強制的に表示
+          setTimeout(() => {
+            submarineModel.setAttribute('visible', 'true');
+          }, 10);
+        }
+      });
+      
+      // カスタムコンポーネントの登録（モデルを常に表示するための実験的なコード）
+      AFRAME.registerComponent('always-visible', {
+        init: function() {
+          this.el.sceneEl.addEventListener('renderstart', () => {
+            if (markerDetected) {
+              submarineModel.setAttribute('visible', 'true');
+            }
+          });
+        },
+        tick: function() {
+          if (markerDetected) {
+            submarineModel.setAttribute('visible', 'true');
+          }
+        }
+      });
+      
+      // シーンにコンポーネント追加
+      document.querySelector('a-scene').setAttribute('always-visible', '');
       
       // 音声コントロールボタンのクリックイベント
       audioControlButton.addEventListener('click', toggleAudio);
@@ -177,6 +192,13 @@
           });
         }
       }
+      
+      // モデル表示を維持するための定期チェック（実験的）
+      setInterval(() => {
+        if (markerDetected) {
+          submarineModel.setAttribute('visible', 'true');
+        }
+      }, 100);
     </script>
   </body>
 </html>
