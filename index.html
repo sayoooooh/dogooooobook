@@ -68,9 +68,27 @@
       .hidden {
         display: none !important;
       }
+      
+      /* デバッグ情報表示（開発時のみ使用） */
+      #debug-info {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 12px;
+        z-index: 1000;
+        display: none;
+      }
     </style>
   </head>
   <body>
+    <!-- デバッグ情報 -->
+    <div id="debug-info">モデル状態: 未検出</div>
+    
     <!-- 音声コントロールボタン -->
     <div id="audioControlButton">
       <!-- 最初は再生ボタンを表示 -->
@@ -78,12 +96,17 @@
       <div id="playIcon" class="play-icon"></div>
     </div>
     
+    <!-- 独立したモデル表示用のコンテナ -->
+    <div id="model-container">
+      <!-- ここにThree.jsでモデルを表示 -->
+    </div>
+    
     <!-- A-Frame シーン -->
     <a-scene
-      mindar-image="imageTargetSrc: targets.mind; autoStart: true;"
+      mindar-image="imageTargetSrc: targets.mind; autoStart: true; uiScanning: #scanning-overlay;"
       embedded
       color-space="sRGB"
-      renderer="colorManagement: true, physicallyCorrectLights"
+      renderer="colorManagement: true; physicallyCorrectLights"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
     >
@@ -92,33 +115,25 @@
         <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
       </a-assets>
       
-      <!-- カメラ固定モデル - このモデルがマーカー認識後に表示され続ける -->
-      <a-entity 
-        id="fixed-model"
-        position="0 0 -2"
-        rotation="0 0 0"
-        scale="0.4 0.4 0.4"
-        visible="false">
-        <a-gltf-model
-          id="fixed-submarine"
-          src="#submarine_gltf"
-        ></a-gltf-model>
-      </a-entity>
-      
       <!-- カメラ -->
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      
-      <!-- マーカー認識用エンティティ -->
-      <a-entity id="mytarget" mindar-image-target="targetIndex: 0">
-        <a-entity id="marker-model" position="0 -0.5 0">
+      <a-camera position="0 0 0" look-controls="enabled: false">
+        <!-- カメラに対して固定表示するモデル（マーカー検出後に表示） -->
+        <a-entity 
+          id="camera-fixed-model"
+          position="0 0 -2"
+          rotation="0 0 0"
+          scale="0.4 0.4 0.4"
+          visible="false">
           <a-gltf-model
-            id="marker-submarine"
+            id="camera-model"
             src="#submarine_gltf"
-            position="0 0.5 0"
-            rotation="0 0 0"
-            scale="0.4 0.4 0.4"
           ></a-gltf-model>
         </a-entity>
+      </a-camera>
+      
+      <!-- マーカー認識用エンティティ - 検出だけに使用 -->
+      <a-entity id="mytarget" mindar-image-target="targetIndex: 0">
+        <!-- ここは空でOK - 検出だけに使用 -->
       </a-entity>
     </a-scene>
 
@@ -126,16 +141,24 @@
       // 要素の取得
       const audio = document.getElementById('sound');
       const marker = document.getElementById('mytarget');
-      const markerModel = document.getElementById('marker-model');
-      const fixedModel = document.getElementById('fixed-model');
-      const fixedSubmarine = document.getElementById('fixed-submarine');
+      const cameraFixedModel = document.getElementById('camera-fixed-model');
       const audioControlButton = document.getElementById('audioControlButton');
       const stopIcon = document.getElementById('stopIcon');
       const playIcon = document.getElementById('playIcon');
+      const debugInfo = document.getElementById('debug-info');
+      
+      // デバッグモード（必要に応じてtrueに設定）
+      const DEBUG_MODE = false;
+      
+      // デバッグ情報表示
+      if (DEBUG_MODE) {
+        debugInfo.style.display = 'block';
+      }
       
       // フラグ
       let markerDetected = false;
       let isPlaying = false;
+      let modelVisible = false;
       
       // オーディオコンテキスト初期化（モバイルブラウザ対応）
       let audioContext;
@@ -154,39 +177,43 @@
         audio.load();
       }
       
-      // カスタムコンポーネント：マーカー検出でモデルを永続表示
-      AFRAME.registerComponent('ar-persistent-model', {
-        init: function () {
-          // このコンポーネントはシーンに追加する
-          const scene = this.el;
+      // モデルを表示する関数
+      function showModel() {
+        if (!modelVisible && markerDetected) {
+          // カメラに固定されたモデルを表示
+          cameraFixedModel.setAttribute('visible', 'true');
+          modelVisible = true;
           
-          // 初期化処理
-          console.log('AR永続モデルコンポーネント初期化');
-          
-          // モデルを永続的に表示するための処理
-          function showPersistentModel() {
-            if (markerDetected) {
-              // 固定モデルを表示状態に
-              fixedModel.setAttribute('visible', 'true');
-            }
+          if (DEBUG_MODE) {
+            debugInfo.textContent = 'モデル状態: 表示中';
+          }
+        }
+      }
+      
+      // モデル表示を定期的に確認・修正
+      function setupModelVisibilityCheck() {
+        // モデル表示を維持するためのインターバル
+        setInterval(() => {
+          if (markerDetected && !modelVisible) {
+            showModel();
           }
           
-          // シーンの各レンダリングフレームで呼び出し
-          scene.addEventListener('renderstart', showPersistentModel);
-          scene.addEventListener('render', showPersistentModel);
-          
-          // カメラの更新イベントでも呼び出し
-          scene.addEventListener('camera-update', showPersistentModel);
-        }
-      });
+          // モデルが非表示になっていたら再表示
+          if (markerDetected && !cameraFixedModel.getAttribute('visible')) {
+            cameraFixedModel.setAttribute('visible', 'true');
+            
+            if (DEBUG_MODE) {
+              debugInfo.textContent = 'モデル状態: 再表示（強制）';
+            }
+          }
+        }, 100); // 100ms毎にチェック
+      }
       
       // ページ読み込み直後に実行
       document.addEventListener('DOMContentLoaded', function() {
         console.log('ページ読み込み完了');
         initAudio();
-        
-        // シーンにカスタムコンポーネントを追加
-        document.querySelector('a-scene').setAttribute('ar-persistent-model', '');
+        setupModelVisibilityCheck();
         
         // iOS Safari対応: 初回タップで音声を有効化
         document.body.addEventListener('click', function firstTouch() {
@@ -229,24 +256,17 @@
       marker.addEventListener('targetFound', function() {
         console.log('マーカー認識');
         
-        // マーカー認識フラグを立てる（一度だけ実行する処理用）
         if (!markerDetected) {
           markerDetected = true;
-          console.log('初回マーカー認識: モデルを固定表示します');
           
-          // マーカーの位置にモデルを配置
-          const scene = document.querySelector('a-scene');
-          const markerEl = marker.object3D;
-          const camera = scene.camera;
+          if (DEBUG_MODE) {
+            debugInfo.textContent = 'モデル状態: マーカー検出';
+          }
           
-          // 少し遅延を入れて処理（モデルが安定するまで）
+          // 少し遅延させてからモデルを表示
           setTimeout(() => {
-            // マーカーに紐づくモデルを非表示に
-            markerModel.setAttribute('visible', 'false');
-            
-            // カメラの前方に固定モデルを配置して表示
-            fixedModel.setAttribute('position', '0 0 -2');
-            fixedModel.setAttribute('visible', 'true');
+            // モデルを表示
+            showModel();
             
             // 音声コントロールボタンを表示
             audioControlButton.style.display = 'flex';
@@ -258,33 +278,50 @@
       marker.addEventListener('targetLost', function() {
         console.log('マーカーロスト');
         
-        // 重要: マーカーを見失ってもモデルを表示し続ける
+        if (DEBUG_MODE) {
+          debugInfo.textContent = 'モデル状態: マーカーロスト（表示維持中）';
+        }
+        
+        // マーカーを見失っても表示を維持
         if (markerDetected) {
-          fixedModel.setAttribute('visible', 'true');
+          // カメラに固定されているモデルは自動的に維持される
+          cameraFixedModel.setAttribute('visible', 'true');
         }
       });
       
-      // モデル読み込み完了時
-      fixedSubmarine.addEventListener('model-loaded', function() {
-        console.log('モデル読み込み完了');
+      // 特別なコンポーネントの登録 - モデルを永続的に表示
+      AFRAME.registerComponent('keep-model-visible', {
+        schema: {
+          type: 'boolean',
+          default: true
+        },
+        
+        init: function() {
+          this.el.sceneEl.addEventListener('renderstart', this.checkVisibility.bind(this));
+          this.el.sceneEl.addEventListener('render', this.checkVisibility.bind(this));
+        },
+        
+        checkVisibility: function() {
+          if (markerDetected && !cameraFixedModel.getAttribute('visible')) {
+            cameraFixedModel.setAttribute('visible', 'true');
+          }
+        }
+      });
+      
+      // シーンにコンポーネント追加
+      document.querySelector('a-scene').setAttribute('keep-model-visible', 'true');
+      
+      // リサイズイベントでもモデル表示を維持
+      window.addEventListener('resize', function() {
+        if (markerDetected) {
+          cameraFixedModel.setAttribute('visible', 'true');
+        }
       });
       
       // A-Frameシーン読み込み完了イベント
       const scene = document.querySelector('a-scene');
       scene.addEventListener('loaded', function() {
         console.log('A-Frameシーン読み込み完了');
-      });
-      
-      // レンダリングループ開始時
-      scene.addEventListener('renderstart', function() {
-        console.log('レンダリング開始');
-      });
-      
-      // 画面リサイズ時にも固定モデルの表示を維持
-      window.addEventListener('resize', function() {
-        if (markerDetected) {
-          fixedModel.setAttribute('visible', 'true');
-        }
       });
     </script>
   </body>
