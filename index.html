@@ -2,8 +2,7 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>最小限のMindAR</title>
-    <!-- 適切なバージョンのA-FrameとMindARを使用 -->
+    <title>MindAR GLTFモデル</title>
     <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.5/dist/mindar-image.prod.js"></script>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.5/dist/mindar-image-aframe.prod.js"></script>
@@ -34,7 +33,7 @@
         cursor: pointer;
         display: none;
       }
-      .stop-icon, .play-icon {
+      .stop-icon {
         width: 20px;
         height: 20px;
         background-color: #1E88E5;
@@ -70,44 +69,114 @@
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false"
       >
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-assets>
+          <audio id="sound" src="Fermentation.mp3" preload="auto" loop></audio>
+          <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
+        </a-assets>
         
+        <!-- カメラに固定表示するモデル（マーカー検出後に表示） -->
+        <a-camera position="0 0 0" look-controls="enabled: false">
+          <a-entity 
+            id="camera-model"
+            position="0 0 -2"
+            rotation="0 0 0"
+            scale="0.4 0.4 0.4"
+            visible="false">
+            <a-gltf-model
+              id="fixed-submarine"
+              src="#submarine_gltf"
+            ></a-gltf-model>
+          </a-entity>
+        </a-camera>
+        
+        <!-- マーカー認識用エンティティ -->
         <a-entity id="example-target" mindar-image-target="targetIndex: 0">
-          <!-- まずは単純な赤いボックスで表示を確認 -->
-          <a-box position="0 0.5 0" rotation="0 0 0" scale="0.5 0.5 0.5" color="red"></a-box>
+          <a-gltf-model
+            id="marker-submarine"
+            src="#submarine_gltf"
+            position="0 0 0"
+            rotation="0 0 0"
+            scale="0.4 0.4 0.4"
+          ></a-gltf-model>
         </a-entity>
       </a-scene>
     </div>
 
     <script>
+      // 要素の取得
       const exampleTarget = document.getElementById('example-target');
+      const markerSubmarine = document.getElementById('marker-submarine');
+      const cameraModel = document.getElementById('camera-model');
       const audioControlButton = document.getElementById('audioControlButton');
       const stopIcon = document.getElementById('stopIcon');
       const playIcon = document.getElementById('playIcon');
+      const audio = document.getElementById('sound');
+      
+      // フラグ
+      let markerDetected = false;
+      let isPlaying = false;
+      
+      // サウンド初期化関数
+      function initAudio() {
+        audio.load();
+        // iOSのサウンド再生対策
+        document.addEventListener('touchstart', function() {
+          const context = new (window.AudioContext || window.webkitAudioContext)();
+          context.resume().then(() => {
+            console.log('AudioContext resumed');
+          });
+        }, {once: true});
+      }
+      
+      // ページ読み込み時
+      document.addEventListener('DOMContentLoaded', function() {
+        initAudio();
+      });
       
       // マーカー検出時
       exampleTarget.addEventListener('targetFound', () => {
         console.log('ターゲット検出');
-        // ボタンを表示
-        audioControlButton.style.display = 'flex';
-      });
-      
-      // マーカーロスト時
-      exampleTarget.addEventListener('targetLost', () => {
-        console.log('ターゲットロスト');
+        
+        // 初回検出時のみ処理
+        if (!markerDetected) {
+          markerDetected = true;
+          
+          // 少し遅延させてからモデル切り替え
+          setTimeout(() => {
+            // マーカーモデルを非表示に
+            markerSubmarine.setAttribute('visible', 'false');
+            
+            // カメラに固定されたモデルを表示
+            cameraModel.setAttribute('visible', 'true');
+            
+            // コントロールボタンを表示
+            audioControlButton.style.display = 'flex';
+          }, 300);
+        }
       });
       
       // 音声コントロールボタンのクリックイベント
-      audioControlButton.addEventListener('click', () => {
-        // ここでは単純に見た目だけ切り替え
-        if (stopIcon.classList.contains('hidden')) {
-          stopIcon.classList.remove('hidden');
-          playIcon.classList.add('hidden');
-        } else {
+      audioControlButton.addEventListener('click', toggleAudio);
+      
+      // 音声の再生/停止を切り替える関数
+      function toggleAudio() {
+        if (isPlaying) {
+          // 停止処理
+          audio.pause();
           stopIcon.classList.add('hidden');
           playIcon.classList.remove('hidden');
+          isPlaying = false;
+        } else {
+          // 再生処理
+          audio.play().then(() => {
+            playIcon.classList.add('hidden');
+            stopIcon.classList.remove('hidden');
+            isPlaying = true;
+          }).catch(err => {
+            console.error('音声再生エラー:', err);
+          });
         }
-      });
+      }
     </script>
   </body>
 </html>
