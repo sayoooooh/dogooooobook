@@ -1,13 +1,13 @@
+<!DOCTYPE html>
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <!-- HTTPSバージョンに変更 -->
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://unpkg.com/aframe-html-shader@0.2.0/dist/aframe-html-shader.min.js"></script>
-    <title>AR Audio Test</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <title>AR Audio Demo</title>
     <style>
       #debug {
         position: fixed;
@@ -18,55 +18,138 @@
         padding: 10px;
         font-family: monospace;
         z-index: 1000;
+        font-size: 14px;
       }
-      #audioButton {
+      
+      /* 初期表示を隠す */
+      #debug.hidden {
+        display: none;
+      }
+      
+      #startOverlay {
         position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 15px 30px;
-        background: #3498db;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.8);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
         color: white;
+      }
+      
+      #startButton {
+        background-color: #4CAF50;
         border: none;
-        border-radius: 5px;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
         font-size: 16px;
+        margin: 20px;
+        cursor: pointer;
+        border-radius: 8px;
+      }
+      
+      /* 音声コントロールボタン */
+      #audioControlButton {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 60px;
+        height: 60px;
+        background-color: white;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         z-index: 1000;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+      
+      #audioControlButton:active {
+        transform: scale(0.95);
+      }
+      
+      /* 停止ボタン（青い四角） */
+      .stop-icon {
+        width: 20px;
+        height: 20px;
+        background-color: #1E88E5;
+        border-radius: 2px;
+      }
+      
+      /* 再生ボタン（青い三角） */
+      .play-icon {
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 12px 0 12px 20px;
+        border-color: transparent transparent transparent #1E88E5;
+        margin-left: 4px;
+      }
+      
+      .hidden {
+        display: none !important;
       }
     </style>
   </head>
   <body>
-    <!-- デバッグ用UI -->
-    <div id="debug">ステータス: 初期化中...</div>
-    <button id="audioButton">音声を有効化</button>
-
+    <!-- デバッグ情報 -->
+    <div id="debug" class="hidden">ステータス: 準備中...</div>
+    
+    <!-- 開始オーバーレイ -->
+    <div id="startOverlay">
+      <h2>AR体験を開始</h2>
+      <p>カメラとサウンドを有効にするには下のボタンをタップしてください</p>
+      <button id="startButton">開始</button>
+    </div>
+    
+    <!-- 音声コントロールボタン (初期状態では非表示) -->
+    <div id="audioControlButton" class="hidden">
+      <div id="stopIcon" class="stop-icon"></div>
+      <div id="playIcon" class="play-icon hidden"></div>
+    </div>
+    
+    <!-- A-Frame シーン -->
     <a-scene
-      mindar-image="imageTargetSrc: targets.mind;"
-      embedded=""
+      mindar-image="imageTargetSrc: targets.mind; autoStart: false;"
+      embedded
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
-      inspector=""
-      keyboard-shortcuts=""
-      screenshot=""
     >
-      <a-camera
-        position="0 0 0"
-        look-controls="enabled: false"
-        cursor="fuse: false; rayOrigin: mouse;"
-        raycaster="far: 10000; objects: .clickable"
-      >
-      </a-camera>
-
-      <a-assets timeout="30000">
-        <audio id="sound" src="Fermentation.mp3" preload="auto"></audio>
+      <a-assets>
+        <audio id="sound" src="Fermentation.mp3" preload="auto" loop></audio>
         <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
       </a-assets>
-
-      <!-- マーカー認識用エンティティ -->
-      <a-entity id="mytarget" mindar-image-target="targetIndex: 0">
-        <a-entity id="portfolio-panel" position="0 -0.5 0">
+      
+      <a-camera position="0 0 0" look-controls="enabled: false">
+        <!-- カメラに対して固定表示するモデル (初期状態では非表示) -->
+        <a-entity 
+          id="fixed-model"
+          position="0 0 -2"
+          rotation="0 0 0"
+          scale="0.4 0.4 0.4"
+          visible="false">
           <a-gltf-model
+            id="camera-model"
+            src="#submarine_gltf"
+          ></a-gltf-model>
+        </a-entity>
+      </a-camera>
+      
+      <!-- マーカー認識用エンティティ (一時的に表示) -->
+      <a-entity id="mytarget" mindar-image-target="targetIndex: 0">
+        <a-entity id="marker-model-container" position="0 -0.5 0">
+          <a-gltf-model
+            id="marker-model"
             src="#submarine_gltf"
             position="0 0.5 0"
             rotation="0 0 0"
@@ -76,92 +159,183 @@
       </a-entity>
     </a-scene>
 
-    <!-- JSで音を制御 -->
     <script>
+      // 要素の取得
+      const startButton = document.getElementById('startButton');
+      const startOverlay = document.getElementById('startOverlay');
       const debugUI = document.getElementById('debug');
-      const audioButton = document.getElementById('audioButton');
-      const marker = document.querySelector('#mytarget');
-      const audio = document.querySelector('#sound');
-      let audioEnabled = false;
+      const audio = document.getElementById('sound');
+      const scene = document.querySelector('a-scene');
+      const markerEntity = document.getElementById('mytarget');
+      const markerModel = document.getElementById('marker-model');
+      const fixedModel = document.getElementById('fixed-model');
+      const audioControlButton = document.getElementById('audioControlButton');
+      const stopIcon = document.getElementById('stopIcon');
+      const playIcon = document.getElementById('playIcon');
       
-      // オーディオの読み込み確認
-      audio.addEventListener('loadeddata', () => {
-        debugUI.textContent = "ステータス: 音声ファイル読み込み完了";
-        console.log("音声ファイル読み込み完了");
+      // フラグ
+      let markerDetected = false;
+      let isPlaying = false;
+      
+      // AudioContextの初期化
+      let audioContext;
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContext();
+      } catch (e) {
+        console.error('AudioContext not supported:', e);
+      }
+
+      // モデル読み込みイベント
+      const model = document.getElementById('camera-model');
+      model.addEventListener('model-loaded', () => {
+        console.log('モデル読み込み完了');
       });
       
-      audio.addEventListener('error', (e) => {
-        debugUI.textContent = "エラー: 音声ファイルの読み込みに失敗 - " + e.message;
-        console.error("音声読み込みエラー:", e);
+      // 音声コントロールボタンイベント
+      audioControlButton.addEventListener('click', function() {
+        toggleAudio();
       });
       
-      // オーディオ再生の許可を取得するためのボタン
-      audioButton.addEventListener('click', () => {
-        debugUI.textContent = "ステータス: 音声を有効化中...";
+      // 音声の再生/停止を切り替える関数
+      function toggleAudio() {
+        if (isPlaying) {
+          // 再生中なら停止
+          audio.pause();
+          // 停止アイコンを隠して再生アイコンを表示
+          stopIcon.classList.add('hidden');
+          playIcon.classList.remove('hidden');
+          isPlaying = false;
+        } else {
+          // 停止中なら再生
+          audio.play().then(() => {
+            // 再生アイコンを隠して停止アイコンを表示
+            playIcon.classList.add('hidden');
+            stopIcon.classList.remove('hidden');
+            isPlaying = true;
+          }).catch(err => {
+            console.error('再生エラー:', err);
+          });
+        }
+      }
+      
+      // 開始ボタンクリックイベント
+      startButton.addEventListener('click', function() {
+        // オーバーレイを非表示
+        startOverlay.classList.add('hidden');
         
-        // オーディオコンテキストの初期化（必要に応じて）
-        if (typeof AudioContext !== 'undefined') {
-          const audioContext = new AudioContext();
-          if (audioContext.state === 'suspended') {
-            audioContext.resume();
-          }
+        // AudioContextを有効化
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().then(() => {
+            console.log('AudioContext resumed successfully');
+          });
         }
         
-        // 音声再生の許可を取得
+        // サウンドの準備（モバイルブラウザのポリシー対応）
+        audio.load();
+        
+        // 一度再生を試みて権限を取得（すぐに一時停止）
         audio.play().then(() => {
+          console.log('Initial audio playback successful');
           audio.pause();
           audio.currentTime = 0;
-          audioEnabled = true;
-          debugUI.textContent = "ステータス: 音声が有効化されました";
-          audioButton.style.display = 'none';
         }).catch(err => {
-          debugUI.textContent = "エラー: 音声の有効化に失敗 - " + err.message;
-          console.warn("音声再生の許可取得に失敗:", err);
+          console.warn('Initial audio playback failed:', err);
         });
-      });
-      
-      // マーカー検出イベント
-      marker.addEventListener('targetFound', () => {
-        debugUI.textContent = "ステータス: マーカーを検出しました";
-        console.log("マーカー検出");
         
-        if (audioEnabled) {
-          audio.play().then(() => {
-            debugUI.textContent = "ステータス: 音声再生中";
-            console.log("音声再生開始");
-          }).catch(err => {
-            debugUI.textContent = "エラー: 音声再生に失敗 - " + err.message;
-            console.warn('音声再生エラー:', err);
-          });
+        // MindARを開始
+        if (scene.systems["mindar-image-system"]) {
+          scene.systems["mindar-image-system"].start();
+          console.log('MindAR system started');
         } else {
-          debugUI.textContent = "注意: 先に「音声を有効化」ボタンをタップしてください";
+          console.error('MindAR system not initialized');
         }
       });
       
-      marker.addEventListener('targetLost', () => {
-        debugUI.textContent = "ステータス: マーカーを見失いました";
-        console.log("マーカーロスト");
+      // マーカー認識時
+      markerEntity.addEventListener('targetFound', function() {
+        console.log('Target found');
         
-        audio.pause();
-        audio.currentTime = 0;
-      });
-
-      // MindARのデバッグ情報
-      const scene = document.querySelector('a-scene');
-      scene.addEventListener('loaded', function () {
-        debugUI.textContent = "ステータス: シーン読み込み完了、カメラ起動待ち";
-        console.log("A-Frameシーン読み込み完了");
+        // 音声コントロールボタンを表示
+        audioControlButton.classList.remove('hidden');
+        
+        if (!markerDetected) {
+          markerDetected = true;
+          
+          // AudioContextが一時停止状態なら再開
+          if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+          }
+          
+          // 音声再生
+          audio.play().then(() => {
+            console.log('Audio playing successfully');
+            isPlaying = true;
+            // 停止アイコンを表示（再生アイコンを隠す）
+            stopIcon.classList.remove('hidden');
+            playIcon.classList.add('hidden');
+          }).catch(err => {
+            console.error('Failed to play audio:', err);
+            // エラー時は再生アイコンを表示
+            stopIcon.classList.add('hidden');
+            playIcon.classList.remove('hidden');
+            isPlaying = false;
+          });
+          
+          // 少し遅延を入れてからマーカーモデルを非表示にし、固定モデルを表示
+          setTimeout(() => {
+            // モデルを固定に切り替え
+            markerModel.setAttribute('visible', 'false');
+            fixedModel.setAttribute('visible', 'true');
+            
+            // デバッグ情報表示（開発中のみ）
+            // debugUI.classList.remove('hidden');
+            // debugUI.textContent = 'モデルを固定表示に切り替えました';
+            
+            // フィードバックを表示（オプション）
+            showFeedback('モデルを固定表示に切り替えました');
+          }, 500);
+        }
       });
       
-      // シーンの初期化状態を確認
-      const mindARSystem = scene.systems["mindar-image-system"];
-      if (mindARSystem) {
-        debugUI.textContent = "ステータス: MindAR初期化完了";
-        console.log("MindARシステム初期化完了");
-      } else {
-        debugUI.textContent = "エラー: MindARシステムの初期化に失敗";
-        console.error("MindARシステム初期化エラー");
+      // マーカーロスト時の処理（モデルは固定表示のまま）
+      markerEntity.addEventListener('targetLost', function() {
+        console.log('Target lost');
+        // モデルはカメラに固定されているので、ここでは特に何もしない
+      });
+      
+      // フィードバック表示関数
+      function showFeedback(message) {
+        const feedback = document.createElement('div');
+        feedback.style.position = 'fixed';
+        feedback.style.top = '50%';
+        feedback.style.left = '50%';
+        feedback.style.transform = 'translate(-50%, -50%)';
+        feedback.style.background = 'rgba(0,0,0,0.7)';
+        feedback.style.color = 'white';
+        feedback.style.padding = '15px 20px';
+        feedback.style.borderRadius = '8px';
+        feedback.style.fontSize = '16px';
+        feedback.style.zIndex = '2000';
+        feedback.style.textAlign = 'center';
+        feedback.textContent = message;
+        document.body.appendChild(feedback);
+        
+        // 2秒後にフェードアウト
+        setTimeout(() => {
+          feedback.style.opacity = '0';
+          feedback.style.transition = 'opacity 0.5s';
+          setTimeout(() => {
+            document.body.removeChild(feedback);
+          }, 500);
+        }, 2000);
       }
+      
+      // エラーハンドリング
+      window.addEventListener('error', function(e) {
+        console.error('Global error:', e);
+        // showFeedback('エラーが発生しました: ' + e.message);
+      });
     </script>
   </body>
 </html>
