@@ -4,16 +4,41 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-
-    <!-- <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/1.6.2/aframe/build/aframe-ar.js"></script> -->
+    <!-- HTTPSバージョンに変更 -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://unpkg.com/aframe-html-shader@0.2.0/dist/aframe-html-shader.min.js"></script>
-    <script src="http://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-
-    <title></title>
-    <style></style>
+    <title>AR Audio Test</title>
+    <style>
+      #debug {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.6);
+        color: white;
+        padding: 10px;
+        font-family: monospace;
+        z-index: 1000;
+      }
+      #audioButton {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px 30px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        z-index: 1000;
+      }
+    </style>
   </head>
   <body>
-    <!-- ※1 a-scene に mindar-image 属性を追加しマーカーファイル（.mindファイル）のパスを記載-->
+    <!-- デバッグ用UI -->
+    <div id="debug">ステータス: 初期化中...</div>
+    <button id="audioButton">音声を有効化</button>
+
     <a-scene
       mindar-image="imageTargetSrc: targets.mind;"
       embedded=""
@@ -30,57 +55,113 @@
         look-controls="enabled: false"
         cursor="fuse: false; rayOrigin: mouse;"
         raycaster="far: 10000; objects: .clickable"
-        camera=""
-        rotation=""
-        wasd-controls=""
       >
       </a-camera>
-<a-assets timeout="30000">
-        <audio id="sound" src="Fermentation.mp3" loop></audio>
-  <a-asset-item
-    id="submarine_gltf"
-    src="chapter3_ar.glb"
-  ></a-asset-item>
-</a-assets>
 
-<!-- マーカー認識用エンティティ -->
-<a-entity id="mytarget" mindar-image-target="targetIndex: 0">
-  <a-entity id="portfolio-panel" position="0 -0.5 0">
-    <a-gltf-model
-      src="#submarine_gltf"
-      position="0 0.5 0"
-      rotation="0 0 0"
-      scale="0.4 0.4 0.4"
-    ></a-gltf-model>
-  </a-entity>
-</a-entity>
+      <a-assets timeout="30000">
+        <audio id="sound" src="Fermentation.mp3" preload="auto"></audio>
+        <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
+      </a-assets>
+
+      <!-- マーカー認識用エンティティ -->
+      <a-entity id="mytarget" mindar-image-target="targetIndex: 0">
+        <a-entity id="portfolio-panel" position="0 -0.5 0">
+          <a-gltf-model
+            src="#submarine_gltf"
+            position="0 0.5 0"
+            rotation="0 0 0"
+            scale="0.4 0.4 0.4"
+          ></a-gltf-model>
+        </a-entity>
+      </a-entity>
     </a-scene>
-<!-- JSで音を制御 -->
-<script>
-  // ユーザー操作で再生許可を取得
-  document.body.addEventListener('click', () => {
-    const audio = document.querySelector('#sound');
-    audio.play().then(() => {
-      audio.pause();
-      audio.currentTime = 0;
-    }).catch(err => {
-      console.warn("初回再生失敗:", err);
-    });
-  }, { once: true });
 
-  const marker = document.querySelector('#mytarget');
-  const audio = document.querySelector('#sound');
+    <!-- JSで音を制御 -->
+    <script>
+      const debugUI = document.getElementById('debug');
+      const audioButton = document.getElementById('audioButton');
+      const marker = document.querySelector('#mytarget');
+      const audio = document.querySelector('#sound');
+      let audioEnabled = false;
+      
+      // オーディオの読み込み確認
+      audio.addEventListener('loadeddata', () => {
+        debugUI.textContent = "ステータス: 音声ファイル読み込み完了";
+        console.log("音声ファイル読み込み完了");
+      });
+      
+      audio.addEventListener('error', (e) => {
+        debugUI.textContent = "エラー: 音声ファイルの読み込みに失敗 - " + e.message;
+        console.error("音声読み込みエラー:", e);
+      });
+      
+      // オーディオ再生の許可を取得するためのボタン
+      audioButton.addEventListener('click', () => {
+        debugUI.textContent = "ステータス: 音声を有効化中...";
+        
+        // オーディオコンテキストの初期化（必要に応じて）
+        if (typeof AudioContext !== 'undefined') {
+          const audioContext = new AudioContext();
+          if (audioContext.state === 'suspended') {
+            audioContext.resume();
+          }
+        }
+        
+        // 音声再生の許可を取得
+        audio.play().then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audioEnabled = true;
+          debugUI.textContent = "ステータス: 音声が有効化されました";
+          audioButton.style.display = 'none';
+        }).catch(err => {
+          debugUI.textContent = "エラー: 音声の有効化に失敗 - " + err.message;
+          console.warn("音声再生の許可取得に失敗:", err);
+        });
+      });
+      
+      // マーカー検出イベント
+      marker.addEventListener('targetFound', () => {
+        debugUI.textContent = "ステータス: マーカーを検出しました";
+        console.log("マーカー検出");
+        
+        if (audioEnabled) {
+          audio.play().then(() => {
+            debugUI.textContent = "ステータス: 音声再生中";
+            console.log("音声再生開始");
+          }).catch(err => {
+            debugUI.textContent = "エラー: 音声再生に失敗 - " + err.message;
+            console.warn('音声再生エラー:', err);
+          });
+        } else {
+          debugUI.textContent = "注意: 先に「音声を有効化」ボタンをタップしてください";
+        }
+      });
+      
+      marker.addEventListener('targetLost', () => {
+        debugUI.textContent = "ステータス: マーカーを見失いました";
+        console.log("マーカーロスト");
+        
+        audio.pause();
+        audio.currentTime = 0;
+      });
 
-  marker.addEventListener('targetFound', () => {
-    audio.play().catch(err => {
-      console.warn('再生ブロック:', err);
-    });
-  });
-
-  marker.addEventListener('targetLost', () => {
-    audio.pause();
-    audio.currentTime = 0;
-  });
-</script>
+      // MindARのデバッグ情報
+      const scene = document.querySelector('a-scene');
+      scene.addEventListener('loaded', function () {
+        debugUI.textContent = "ステータス: シーン読み込み完了、カメラ起動待ち";
+        console.log("A-Frameシーン読み込み完了");
+      });
+      
+      // シーンの初期化状態を確認
+      const mindARSystem = scene.systems["mindar-image-system"];
+      if (mindARSystem) {
+        debugUI.textContent = "ステータス: MindAR初期化完了";
+        console.log("MindARシステム初期化完了");
+      } else {
+        debugUI.textContent = "エラー: MindARシステムの初期化に失敗";
+        console.error("MindARシステム初期化エラー");
+      }
+    </script>
   </body>
 </html>
