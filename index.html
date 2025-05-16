@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MindAR 永続表示テスト</title>
+    <title>MindAR Basic Demo</title>
     <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.5/dist/mindar-image.prod.js"></script>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.5/dist/mindar-image-aframe.prod.js"></script>
@@ -10,12 +10,6 @@
       body {
         margin: 0;
         overflow: hidden;
-      }
-      .example-container {
-        overflow: hidden;
-        position: absolute;
-        width: 100%;
-        height: 100%;
       }
       #audioControlButton {
         position: fixed;
@@ -51,135 +45,73 @@
       .hidden {
         display: none !important;
       }
-      #status-message {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        background: rgba(0,0,0,0.6);
-        color: white;
-        padding: 5px 10px;
-        border-radius: 5px;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        z-index: 10;
-      }
     </style>
   </head>
   <body>
-    <!-- ステータスメッセージ -->
-    <div id="status-message">マーカーを探しています...</div>
-    
     <!-- 音声コントロールボタン -->
     <div id="audioControlButton">
       <div id="stopIcon" class="stop-icon hidden"></div>
       <div id="playIcon" class="play-icon"></div>
     </div>
 
-    <div class="example-container">
-      <a-scene 
-        mindar-image="imageTargetSrc: targets.mind; autoStart: true;" 
-        embedded
-        color-space="sRGB"
-        renderer="colorManagement: true, physicallyCorrectLights"
-        vr-mode-ui="enabled: false"
-        device-orientation-permission-ui="enabled: false"
-      >
-        <a-assets>
-          <audio id="sound" src="Fermentation.mp3" preload="auto" loop></audio>
-          <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
-        </a-assets>
+    <a-scene
+      mindar-image="imageTargetSrc: targets.mind;"
+      embedded
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-assets>
+        <audio id="sound" src="Fermentation.mp3" preload="auto" loop></audio>
+        <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity id="target" mindar-image-target="targetIndex: 0">
+        <!-- まずは単純な形状を試す -->
+        <a-box position="0 0.5 0" rotation="0 45 0" scale="0.5 0.5 0.5" color="red"></a-box>
+        <a-sphere position="0 1.2 0" radius="0.5" color="blue"></a-sphere>
         
-        <!-- ここが重要！カメラの子要素としてモデルを配置 -->
-        <a-camera position="0 0 0" look-controls="enabled: false">
-          <!-- カメラに固定されるモデル（マーカー検出後に表示） -->
-          <a-entity 
-            id="fixed-model"
-            position="0 0 -2"
-            rotation="0 0 0"
-            scale="0.4 0.4 0.4"
-            visible="false">
-            <!-- ここでGLBモデルを使おうとしましたが、読み込みエラーがあったので、
-                 基本図形で代用しています。動作確認後にGLBに戻せます -->
-            <a-box position="0 0 0" width="1" height="1" depth="1" color="red"></a-box>
-            <a-sphere position="0 1 0" radius="0.5" color="blue"></a-sphere>
-            <a-cylinder position="0 -1 0" radius="0.5" height="1" color="green"></a-cylinder>
-          </a-entity>
-        </a-camera>
-        
-        <!-- マーカー認識用エンティティ - 検出のみに使用 -->
-        <a-entity id="example-target" mindar-image-target="targetIndex: 0">
-          <!-- 空のエンティティ - 検出用にのみ使用 -->
-        </a-entity>
-      </a-scene>
-    </div>
+        <!-- デバッグが終わったらGLBモデルを有効にしてください -->
+        <!-- 
+        <a-gltf-model
+          id="submarine-model"
+          position="0 -0.5 0" 
+          rotation="0 0 0"
+          scale="0.4 0.4 0.4"
+          src="#submarine_gltf"
+        ></a-gltf-model>
+        -->
+      </a-entity>
+    </a-scene>
 
     <script>
       // 要素の取得
-      const exampleTarget = document.getElementById('example-target');
-      const fixedModel = document.getElementById('fixed-model');
+      const target = document.getElementById('target');
       const audioControlButton = document.getElementById('audioControlButton');
       const stopIcon = document.getElementById('stopIcon');
       const playIcon = document.getElementById('playIcon');
       const audio = document.getElementById('sound');
-      const statusMessage = document.getElementById('status-message');
       
       // フラグ
-      let markerDetected = false;
       let isPlaying = false;
       
-      // サウンド初期化関数
-      function initAudio() {
-        audio.load();
-        // iOSのサウンド再生対策
-        document.addEventListener('touchstart', function() {
-          try {
-            const context = new (window.AudioContext || window.webkitAudioContext)();
-            context.resume().then(() => {
-              console.log('AudioContext resumed');
-            });
-          } catch (e) {
-            console.error('AudioContext error:', e);
-          }
-        }, {once: true});
-      }
-      
-      // ページ読み込み時
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('ページ読み込み完了');
-        initAudio();
-        statusMessage.textContent = 'カメラ起動中...マーカーを探しています';
-      });
-      
       // マーカー検出時
-      exampleTarget.addEventListener('targetFound', () => {
-        console.log('ターゲット検出');
-        statusMessage.textContent = 'マーカー検出！';
+      target.addEventListener('targetFound', () => {
+        console.log('マーカー検出');
         
-        if (!markerDetected) {
-          markerDetected = true;
-          
-          // 少し遅延させてから処理
-          setTimeout(() => {
-            // 固定モデルを表示
-            fixedModel.setAttribute('visible', 'true');
-            
-            // コントロールボタンを表示
-            audioControlButton.style.display = 'flex';
-            
-            statusMessage.textContent = 'モデル表示中 - マーカーを動かしても表示されます';
-          }, 300);
-        }
+        // 音声コントロールボタン表示
+        audioControlButton.style.display = 'flex';
       });
       
       // マーカーロスト時
-      exampleTarget.addEventListener('targetLost', () => {
-        console.log('ターゲットロスト');
-        statusMessage.textContent = 'マーカーロスト - モデルは表示されたまま';
+      target.addEventListener('targetLost', () => {
+        console.log('マーカーロスト');
         
-        // マーカーロスト後もモデルを表示し続ける（念のため）
-        if (markerDetected) {
-          fixedModel.setAttribute('visible', 'true');
-        }
+        // ボタンは表示したままにする
+        // audioControlButton.style.display = 'none';
       });
       
       // 音声コントロールボタンのクリックイベント
@@ -201,17 +133,19 @@
             isPlaying = true;
           }).catch(err => {
             console.error('音声再生エラー:', err);
-            statusMessage.textContent = '音声再生エラー: ' + err.message;
           });
         }
       }
       
-      // 念のため、表示状態を定期的にチェック
-      setInterval(() => {
-        if (markerDetected && !fixedModel.getAttribute('visible')) {
-          fixedModel.setAttribute('visible', 'true');
+      // iOSでの音声再生対策
+      document.addEventListener('click', function() {
+        try {
+          const context = new (window.AudioContext || window.webkitAudioContext)();
+          context.resume().catch(e => console.error(e));
+        } catch (e) {
+          console.error('AudioContext error:', e);
         }
-      }, 100);
+      }, {once: true});
     </script>
   </body>
 </html>
