@@ -2,10 +2,12 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MindAR 3D Model Demo</title>
-    <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.5/dist/mindar-image.prod.js"></script>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.5/dist/mindar-image-aframe.prod.js"></script>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://unpkg.com/aframe-html-shader@0.2.0/dist/aframe-html-shader.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <title>MindAR Demo</title>
     <style>
       html, body {
         margin: 0;
@@ -68,6 +70,7 @@
       <div id="playIcon" class="play-icon"></div>
     </div>
 
+    <!-- 最初のコードと同じ構造を使用 -->
     <a-scene
       mindar-image="imageTargetSrc: targets.mind;"
       embedded
@@ -76,29 +79,38 @@
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
     >
-      <a-assets>
+      <a-camera
+        position="0 0 0"
+        look-controls="enabled: false"
+        cursor="fuse: false; rayOrigin: mouse;"
+        raycaster="far: 10000; objects: .clickable"
+      >
+      </a-camera>
+      
+      <a-assets timeout="30000">
         <audio id="sound" src="Fermentation.mp3" preload="auto" loop></audio>
-        <a-asset-item id="submarine_gltf" src="chapter3_ar.glb"></a-asset-item>
+        <a-asset-item
+          id="submarine_gltf"
+          src="chapter3_ar.glb"
+        ></a-asset-item>
       </a-assets>
-
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <a-entity id="target" mindar-image-target="targetIndex: 0">
-        <!-- 3Dモデルを追加（基本形状を削除） -->
-        <a-gltf-model
-          id="submarine-model"
-          position="0 -0.5 0" 
-          rotation="0 0 0"
-          scale="0.4 0.4 0.4"
-          src="#submarine_gltf"
-        ></a-gltf-model>
+      
+      <!-- 最初のコードと同じ構造 -->
+      <a-entity id="mytarget" mindar-image-target="targetIndex: 0">
+        <a-entity id="portfolio-panel" position="0 -0.5 0">
+          <a-gltf-model
+            src="#submarine_gltf"
+            position="0 0.5 0"
+            rotation="0 0 0"
+            scale="0.4 0.4 0.4"
+          ></a-gltf-model>
+        </a-entity>
       </a-entity>
     </a-scene>
 
     <script>
       // 要素の取得
-      const target = document.getElementById('target');
-      const submarineModel = document.getElementById('submarine-model');
+      const marker = document.querySelector('#mytarget');
       const audioControlButton = document.getElementById('audioControlButton');
       const stopIcon = document.getElementById('stopIcon');
       const playIcon = document.getElementById('playIcon');
@@ -107,18 +119,8 @@
       // フラグ
       let isPlaying = false;
       
-      // モデル読み込み時
-      submarineModel.addEventListener('model-loaded', () => {
-        console.log('3Dモデル読み込み完了');
-      });
-      
-      // モデル読み込みエラー時
-      submarineModel.addEventListener('model-error', (error) => {
-        console.error('3Dモデル読み込みエラー:', error);
-      });
-      
       // マーカー検出時
-      target.addEventListener('targetFound', () => {
+      marker.addEventListener('targetFound', () => {
         console.log('マーカー検出');
         
         // 音声コントロールボタン表示
@@ -126,11 +128,10 @@
       });
       
       // マーカーロスト時
-      target.addEventListener('targetLost', () => {
+      marker.addEventListener('targetLost', () => {
         console.log('マーカーロスト');
         
-        // ボタンは表示したままにする
-        // audioControlButton.style.display = 'none';
+        // ここでは特に何もしない（ボタンは表示したまま）
       });
       
       // 音声コントロールボタンのクリックイベント
@@ -141,6 +142,7 @@
         if (isPlaying) {
           // 停止処理
           audio.pause();
+          audio.currentTime = 0;
           stopIcon.classList.add('hidden');
           playIcon.classList.remove('hidden');
           isPlaying = false;
@@ -157,19 +159,16 @@
       }
       
       // iOSでの音声再生対策
-      document.addEventListener('click', function() {
-        try {
-          const context = new (window.AudioContext || window.webkitAudioContext)();
-          context.resume().catch(e => console.error(e));
-        } catch (e) {
-          console.error('AudioContext error:', e);
-        }
-      }, {once: true});
-      
-      // シーン読み込み完了時
-      document.querySelector('a-scene').addEventListener('loaded', function() {
-        console.log('A-Frameシーン読み込み完了');
-      });
+      document.addEventListener('click', function initAudio() {
+        audio.load();
+        audio.play().then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+        }).catch(err => {
+          console.warn("初回再生失敗:", err);
+        });
+        document.removeEventListener('click', initAudio);
+      }, { once: true });
     </script>
   </body>
 </html>
