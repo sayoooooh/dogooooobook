@@ -7,6 +7,24 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <title>AR Audio Demo</title>
     <style>
+      /* 画面全体に表示するための設定 */
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      
+      /* A-Frameシーンを全画面表示 */
+      a-scene {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+      }
+      
       /* 音声コントロールボタン */
       #audioControlButton {
         position: fixed;
@@ -22,7 +40,6 @@
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         z-index: 1000;
         cursor: pointer;
-        transition: transform 0.2s;
         display: none; /* 初期状態では非表示 */
       }
       
@@ -51,28 +68,14 @@
       .hidden {
         display: none !important;
       }
-      
-      /* タップ検出用のオーバーレイ（透明） */
-      #tapOverlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 999;
-        /* 完全に透明 */
-        background-color: transparent;
-      }
     </style>
   </head>
   <body>
-    <!-- 透明オーバーレイ（初回タップ用） -->
-    <div id="tapOverlay"></div>
-    
     <!-- 音声コントロールボタン -->
     <div id="audioControlButton">
-      <div id="stopIcon" class="stop-icon"></div>
-      <div id="playIcon" class="play-icon hidden"></div>
+      <!-- 最初は再生ボタンを表示 -->
+      <div id="stopIcon" class="stop-icon hidden"></div>
+      <div id="playIcon" class="play-icon"></div>
     </div>
     
     <!-- A-Frame シーン -->
@@ -121,9 +124,7 @@
     <script>
       // 要素の取得
       const audio = document.getElementById('sound');
-      const tapOverlay = document.getElementById('tapOverlay');
       const marker = document.getElementById('mytarget');
-      const markerModel = document.getElementById('marker-model');
       const markerSubmarine = document.getElementById('marker-submarine');
       const fixedModel = document.getElementById('fixed-model');
       const audioControlButton = document.getElementById('audioControlButton');
@@ -133,40 +134,41 @@
       // フラグ
       let markerFirstDetected = false;
       let isPlaying = false;
-      let audioInitialized = false;
       
-      // AudioContext初期化（モバイルブラウザ対応）
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      // オーディオコンテキスト初期化（モバイルブラウザ対応）
       let audioContext;
-      if (AudioContext) {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
         audioContext = new AudioContext();
+      } catch (e) {
+        console.error('AudioContext not supported:', e);
       }
       
-      // 透明オーバーレイのタップイベント（初回音声有効化用）
-      tapOverlay.addEventListener('click', function() {
-        console.log('初回タップ検出');
-        
-        // オーディオコンテキストを有効化
+      // 音声準備
+      function initAudio() {
         if (audioContext && audioContext.state === 'suspended') {
           audioContext.resume();
         }
+        audio.load();
+      }
+      
+      // ページ読み込み直後に実行
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('ページ読み込み完了');
+        initAudio();
         
-        // iOS Safari対応：一時的に音声を再生して一時停止
-        audio.play().then(() => {
-          audio.pause();
-          audio.currentTime = 0;
-          audioInitialized = true;
-          console.log('音声初期化完了');
-        }).catch(err => {
-          console.error('音声初期化エラー:', err);
-        });
-        
-        // 透明オーバーレイを削除
-        tapOverlay.remove();
+        // iOS Safari対応: 初回タップで音声を有効化
+        document.body.addEventListener('click', function firstTouch() {
+          console.log('初回タップ検出');
+          initAudio();
+          document.body.removeEventListener('click', firstTouch);
+        }, { once: true });
       });
       
       // 音声コントロールボタンイベント
-      audioControlButton.addEventListener('click', function() {
+      audioControlButton.addEventListener('click', function(e) {
+        // クリックイベントの伝播を止める
+        e.stopPropagation();
         toggleAudio();
       });
       
@@ -200,19 +202,16 @@
           markerFirstDetected = true;
           console.log('マーカー初回認識');
           
-          // 少し遅延させてから実行
+          // 少し遅延させてから実行（安定化のため）
           setTimeout(() => {
             // マーカーモデルを非表示にし、固定モデルを表示
             markerSubmarine.setAttribute('visible', 'false');
             fixedModel.setAttribute('visible', 'true');
             
-            // 音声が初期化されていれば再生
-            if (audioInitialized) {
-              playAudio();
-            } else {
-              // ユーザーにタップを促す（必要な場合）
-              console.log('音声が初期化されていません。タップしてください');
-            }
+            // 音声コントロールボタンを表示（再生アイコンから）
+            audioControlButton.style.display = 'flex';
+            stopIcon.classList.add('hidden');
+            playIcon.classList.remove('hidden');
           }, 300);
         }
       });
@@ -220,63 +219,28 @@
       // マーカーロスト時
       marker.addEventListener('targetLost', function() {
         console.log('マーカーロスト');
-        // モデルは固定表示のまま、音声も継続再生
+        // モデルは固定表示のまま、音声も継続再生（変更なし）
       });
       
-      // 音声再生関数
-      function playAudio() {
-        if (!isPlaying) {
-          // AudioContextが一時停止状態なら再開
-          if (audioContext && audioContext.state === 'suspended') {
-            audioContext.resume();
-          }
-          
-          audio.play().then(() => {
-            console.log('音声再生成功');
-            isPlaying = true;
-            
-            // 音声コントロールボタンを表示（停止アイコン）
-            stopIcon.classList.remove('hidden');
-            playIcon.classList.add('hidden');
-            audioControlButton.style.display = 'flex';
-          }).catch(err => {
-            console.error('音声再生エラー:', err);
-            
-            // エラー時は再生アイコンを表示
-            audioControlButton.style.display = 'flex';
-            stopIcon.classList.add('hidden');
-            playIcon.classList.remove('hidden');
-          });
-        }
-      }
-      
-      // モデル読み込み完了イベント
-      document.querySelector('a-scene').addEventListener('loaded', function() {
+      // A-Frameシーン読み込み完了イベント
+      const scene = document.querySelector('a-scene');
+      scene.addEventListener('loaded', function() {
         console.log('A-Frameシーン読み込み完了');
-      });
-      
-      // ページ読み込み時の処理
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('ページ読み込み完了');
         
-        // iOS限定：デバイスの向きが変わったときに AudioContext を再開
-        window.addEventListener('orientationchange', function() {
-          if (audioContext && audioContext.state === 'suspended') {
-            audioContext.resume();
+        // MindARの初期化を強制的に行う
+        if (scene.systems && scene.systems["mindar-image-system"]) {
+          // 既に初期化されているかを確認
+          const mindARSystem = scene.systems["mindar-image-system"];
+          if (typeof mindARSystem.start === 'function') {
+            console.log('MindARを開始します');
+            mindARSystem.start(); // 念のため明示的に開始
           }
-        });
+        }
       });
       
-      // マーカー認識コンポーネントのカスタマイズ（マーカーロスト時にモデルを維持）
-      AFRAME.registerComponent('marker-visibility-component', {
-        init: function() {
-          this.el.sceneEl.addEventListener('camera-update', () => {
-            // マーカーが一度認識され、現在固定モデルが表示されている場合
-            if (markerFirstDetected && fixedModel.getAttribute('visible') === 'true') {
-              // モデルの表示を維持（必要に応じて）
-            }
-          });
-        }
+      // モデル読み込み完了時
+      document.getElementById('fixed-submarine').addEventListener('model-loaded', function() {
+        console.log('モデル読み込み完了');
       });
     </script>
   </body>
